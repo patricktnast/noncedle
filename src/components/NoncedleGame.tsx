@@ -67,7 +67,13 @@ const NoncedleGame: React.FC = () => {
       setLatestHash(newHash);
       
       const result = checkHash(newHash);
-      setAttempts(prev => [...prev, result]);
+      setAttempts(prev => {
+             const newAttempts = [...prev, result];
+             if (newAttempts.length > 1000) {
+               return newAttempts.slice(-1000);
+             }
+             return newAttempts;
+           });
       setTotalGuesses(prev => prev + 1);
       
       if (result.every(x => x)) {
