@@ -236,15 +236,14 @@ useEffect(() => {
               </div>
             </div>
           )}
-            
-            {latestHash && (
-              <div className="text-sm font-mono break-all text-gray-600">
-                Last hash: {latestHash}
-              </div>
-            )}
             {latestNonce && (
               <div className="text-sm font-mono break-all text-gray-600">
                 Last nonce: {latestNonce}
+              </div>
+            )}
+            {latestHash && (
+              <div className="text-sm font-mono break-all text-gray-600">
+                Last hash: {latestHash}
               </div>
             )}
           </div>
