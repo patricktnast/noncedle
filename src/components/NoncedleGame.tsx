@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'] as const;
 
-const LEADING_ZEROES = 2;
+const LEADING_ZEROES = 3;
+const startDate = new Date('2024-11-28');
+
 type Attempt = boolean[];
 
 const calculateHash = async (input: string): Promise<string> => {
@@ -17,9 +18,35 @@ const calculateHash = async (input: string): Promise<string> => {
     .join('');
 };
 
+const xoshiro128ss = (a: number, b: number, c: number, d: number) => {
+  return function() {
+    const t = b << 9;
+    let r = a * 5;
+    r = (r << 7 | r >>> 25) * 9;
+    c ^= a;
+    d ^= b;
+    b ^= c;
+    a ^= d;
+    c ^= t;
+    d = d << 11 | d >>> 21;
+    return r >>> 0;
+  };
+};
+
+// Replace generateMockBlockHeader with this version
 const generateMockBlockHeader = (puzzleNumber: number): string => {
-  const timestamp = Date.now();
-  return `version=2;prev=00000000000000000${puzzleNumber - 1};height=${puzzleNumber};timestamp=${timestamp};merkle=4d6172696f2069732077617463`;
+  // Use puzzle number as seed
+  const rng = xoshiro128ss(puzzleNumber, puzzleNumber * 747, puzzleNumber * 911, puzzleNumber * 537);
+  
+  // Generate a random merkle root that's consistent for this puzzle number
+  const merkleHex = Array.from({length: 32}, () => 
+    rng().toString(16).padStart(8, '0').slice(0, 2)
+  ).join('');
+
+  // Use actual timestamp for the day rather than current time
+  const timestamp = startDate.getTime() + (puzzleNumber - 1) * 24 * 60 * 60 * 1000;
+
+  return `version=2;prev=00000000000000000${puzzleNumber - 1};height=${puzzleNumber};timestamp=${timestamp};merkle=${merkleHex}`;
 };
 
 const NoncedleGame: React.FC = () => {
@@ -28,16 +55,15 @@ const NoncedleGame: React.FC = () => {
   const [currentGuess, setCurrentGuess] = useState<string>('');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [latestHash, setLatestHash] = useState<string>('');
+  const [latestNonce, setLatestNonce] = useState<number | null>(null);
   const [won, setWon] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [konamiProgress, setKonamiProgress] = useState<string[]>([]);
   const [autoGuessing, setAutoGuessing] = useState<boolean>(false);
   const [totalGuesses, setTotalGuesses] = useState<number>(0);
-  const [successfulNonce, setSuccessfulNonce] = useState<number | null>(null);
 
 
   useEffect(() => {
-    const startDate = new Date('2024-11-28');
     const today = new Date();
     const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     const todaysPuzzleNumber = daysSinceStart + 1;
@@ -60,6 +86,7 @@ const NoncedleGame: React.FC = () => {
       const combinedInput = blockHeader + nonce;
       const newHash = await calculateHash(combinedInput);
       setLatestHash(newHash);
+      setLatestNonce(nonce);
       
       const result = checkHash(newHash);
       setAttempts(prev => {
@@ -73,7 +100,6 @@ const NoncedleGame: React.FC = () => {
       
       if (result.every(x => x)) {
         setWon(true);
-        setSuccessfulNonce(nonce);
         return true;
       }
       return false;
@@ -140,28 +166,21 @@ useEffect(() => {
   }, [konamiProgress]);
 
   return (
-    <Card className="w-full flex flex-col">
-      <CardHeader className="text-center space-y-4">
-        <CardTitle className="text-4xl font-bold tracking-widest" style={{ fontFamily: 'Helvetica Neue, Arial, sans-serif' }}>
+    <div className="w-screen h-screen items-center justify-center bg-gray-100">
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold tracking-widest" style={{ fontFamily: 'Helvetica Neue, Arial, sans-serif' }}>
           NONCEDLE
-        </CardTitle>
+        </h1>
         <div className="text-sm">
           #{puzzleNumber}
         </div>
         <div className="text-sm text-gray-600">
-          Guess the integer that gives the block hash {LEADING_ZEROES} leading zeroes!
+          Guess an integer that gives the block hash {LEADING_ZEROES} leading zeroes!
         </div>
-        {won && (
-            <Alert className="bg-green-100">
-              <AlertDescription>
-                Congratulations! You found a nonce {successfulNonce} that produces {LEADING_ZEROES} leading zeros! 🎉
-              </AlertDescription>
-            </Alert>
-          )}
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="px-4">
         <div className="space-y-4">
-          <div className="text-sm font-mono break-all bg-gray-100 p-3 rounded-lg">
+          <div className="text-sm font-mono break-all bg-gray-200 p-3 rounded-lg">
             {blockHeader}
           </div>
           
@@ -193,10 +212,17 @@ useEffect(() => {
                 Guess
               </Button>
             </div>
-            
-            <div className="text-center text-sm text-gray-600">
+            {won && (
+            <Alert className="bg-green-100">
+              <AlertDescription>
+              🎉 Congratulations! You found a valid hash in {totalGuesses} guesses! 🎉
+              </AlertDescription>
+            </Alert>
+          )}
+           {totalGuesses > 0 && (<div className="text-center text-sm text-gray-600">
               Guesses: {totalGuesses} / 1,000,000
             </div>
+           )}
             {autoGuessing && !won && (
             <div className="flex items-center gap-2 w-full bg-gray-100 p-2 rounded">
               <button
@@ -206,14 +232,19 @@ useEffect(() => {
                 ✕
               </button>
               <div className="flex-1 text-sm text-gray-600">
-                Mining...
+              ⛏️Mining...⛏️
               </div>
             </div>
           )}
             
             {latestHash && (
               <div className="text-sm font-mono break-all text-gray-600">
-                Latest hash: {latestHash}
+                Last hash: {latestHash}
+              </div>
+            )}
+            {latestNonce && (
+              <div className="text-sm font-mono break-all text-gray-600">
+                Last nonce: {latestNonce}
               </div>
             )}
           </div>
@@ -233,8 +264,8 @@ useEffect(() => {
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
