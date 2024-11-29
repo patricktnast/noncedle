@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'] as const;
 
-const LEADING_ZEROES = 3;
+const LEADING_ZEROES = 4;
 const startDate = new Date('2024-11-28');
 
 type Attempt = boolean[];
@@ -130,7 +130,7 @@ useEffect(() => {
      if (success) {
        stopAutoGuessing();
      } else if (autoGuessing) {
-       timeoutId = window.setTimeout(makeGuess, 1);
+       timeoutId = window.setTimeout(makeGuess, 0.1);
      }
    };
    
@@ -220,7 +220,7 @@ useEffect(() => {
             </Alert>
           )}
            {totalGuesses > 0 && (<div className="text-center text-sm text-gray-600">
-              Guesses: {totalGuesses} / 1,000,000
+              Guesses: {totalGuesses} / 50,000
             </div>
            )}
             {autoGuessing && !won && (
