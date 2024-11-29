@@ -3,10 +3,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'] as const;
 
+const LEADING_ZEROES = 2;
 type Attempt = boolean[];
 
 const calculateHash = async (input: string): Promise<string> => {
@@ -32,26 +32,21 @@ const NoncedleGame: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [konamiProgress, setKonamiProgress] = useState<string[]>([]);
   const [autoGuessing, setAutoGuessing] = useState<boolean>(false);
-  const [autoGuessInterval, setAutoGuessInterval] = useState<number | null>(null);
   const [totalGuesses, setTotalGuesses] = useState<number>(0);
+  const [successfulNonce, setSuccessfulNonce] = useState<number | null>(null);
+
 
   useEffect(() => {
-    const startDate = new Date('2024-01-01');
+    const startDate = new Date('2024-11-28');
     const today = new Date();
     const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     const todaysPuzzleNumber = daysSinceStart + 1;
     setPuzzleNumber(todaysPuzzleNumber);
     setBlockHeader(generateMockBlockHeader(todaysPuzzleNumber));
-
-    return () => {
-      if (autoGuessInterval) {
-        window.clearInterval(autoGuessInterval);
-      }
-    };
-  }, []);
+}, []);
 
   const checkHash = useCallback((hash: string): boolean[] => {
-    const leadingDigits = hash.substring(0, 3);
+    const leadingDigits = hash.substring(0, LEADING_ZEROES);
     return leadingDigits.split('').map(digit => digit === '0');
   }, []);
 
@@ -78,6 +73,7 @@ const NoncedleGame: React.FC = () => {
       
       if (result.every(x => x)) {
         setWon(true);
+        setSuccessfulNonce(nonce);
         return true;
       }
       return false;
@@ -93,31 +89,35 @@ const NoncedleGame: React.FC = () => {
     return success;
   };
 
-  const startAutoGuessing = (): void => {
-    if (autoGuessInterval) return;
-    
-    const makeGuess = async () => {
-      const randomNonce = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-      const success = await handleGuess(randomNonce);
-      if (success) {
-        stopAutoGuessing();
-      }
-    };
+const startAutoGuessing = () => setAutoGuessing(true);
+const stopAutoGuessing = () => setAutoGuessing(false);
 
-    makeGuess();
-    const interval = window.setInterval(makeGuess, 1);
-    
-    setAutoGuessInterval(interval);
-    setAutoGuessing(true);
-  };
-
-  const stopAutoGuessing = (): void => {
-    if (autoGuessInterval) {
-      window.clearInterval(autoGuessInterval);
-      setAutoGuessInterval(null);
-    }
-    setAutoGuessing(false);
-  };
+useEffect(() => {
+   let timeoutId: number;
+   
+   const makeGuess = async () => {
+     if (!autoGuessing || won) return;
+     
+     const randomNonce = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+     const success = await handleGuess(randomNonce);
+     
+     if (success) {
+       stopAutoGuessing();
+     } else if (autoGuessing) {
+       timeoutId = window.setTimeout(makeGuess, 1);
+     }
+   };
+   
+   if (autoGuessing) {
+     void makeGuess();
+   }
+   
+   return () => {
+     if (timeoutId) {
+       window.clearTimeout(timeoutId);
+     }
+   };
+ }, [autoGuessing, won]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -149,8 +149,15 @@ const NoncedleGame: React.FC = () => {
           #{puzzleNumber}
         </div>
         <div className="text-sm text-gray-600">
-          Guess the integer that gives the block hash three leading zeroes!
+          Guess the integer that gives the block hash {LEADING_ZEROES} leading zeroes!
         </div>
+        {won && (
+            <Alert className="bg-green-100">
+              <AlertDescription>
+                Congratulations! You found a nonce {successfulNonce} that produces {LEADING_ZEROES} leading zeros! 🎉
+              </AlertDescription>
+            </Alert>
+          )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -190,6 +197,19 @@ const NoncedleGame: React.FC = () => {
             <div className="text-center text-sm text-gray-600">
               Guesses: {totalGuesses} / 1,000,000
             </div>
+            {autoGuessing && !won && (
+            <div className="flex items-center gap-2 w-full bg-gray-100 p-2 rounded">
+              <button
+                onClick={stopAutoGuessing}
+                className="text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+              <div className="flex-1 text-sm text-gray-600">
+                Mining...
+              </div>
+            </div>
+          )}
             
             {latestHash && (
               <div className="text-sm font-mono break-all text-gray-600">
@@ -212,32 +232,8 @@ const NoncedleGame: React.FC = () => {
               </div>
             ))}
           </div>
-
-          {won && (
-            <Alert className="bg-green-100">
-              <AlertDescription>
-                Congratulations! You found a nonce that produces 3 leading zeros! 🎉
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
       </CardContent>
-
-      <AlertDialog open={autoGuessing}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Generating random guesses...
-              <div className="text-sm font-normal text-gray-500">
-                Attempts: {totalGuesses}
-              </div>
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={stopAutoGuessing}>Stop</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Card>
   );
 };
