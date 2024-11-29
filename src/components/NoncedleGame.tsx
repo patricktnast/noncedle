@@ -7,7 +7,7 @@ const STORAGE_KEY = (puzzleNumber: number) => `noncedle-puzzle-${puzzleNumber}`;
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'] as const;
 
 const LEADING_ZEROES = 4;
-const startDate = new Date('2024-11-28');
+const startDate = new Date('2024-11-29');
 
 type Attempt = boolean[];
 
