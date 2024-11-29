@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+const STORAGE_KEY = (puzzleNumber: number) => `noncedle-puzzle-${puzzleNumber}`;
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'] as const;
 
 const LEADING_ZEROES = 4;
@@ -164,6 +165,31 @@ useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [konamiProgress]);
+
+  useEffect(() => {
+    const loadSavedState = () => {
+      const saved = localStorage.getItem(STORAGE_KEY(puzzleNumber));
+      if (saved) {
+        const state = JSON.parse(saved);
+        setAttempts(state.attempts);
+        setTotalGuesses(state.totalGuesses);
+        setWon(state.won);
+        setLatestHash(state.latestHash);
+        setLatestNonce(state.latestNonce);
+      }
+    };
+    loadSavedState();
+  }, [puzzleNumber]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY(puzzleNumber), JSON.stringify({
+      attempts,
+      totalGuesses,
+      won,
+      latestHash,
+      latestNonce
+    }));
+  }, [attempts, totalGuesses, won, latestHash, latestNonce, puzzleNumber]);
 
   return (
     <div className="w-screen h-screen items-center justify-center bg-gray-100">
